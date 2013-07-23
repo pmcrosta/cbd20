@@ -1,0 +1,168 @@
+\documentclass[a4paper,11pt]{texMemo}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{setspace}
+\usepackage{amsmath}
+\singlespacing
+
+<<setup,eval=TRUE,include=TRUE,cache=TRUE,echo=FALSE,results='asis',cache.path='cachecbd/cbd20-'>>=
+#do requires and set up environment for reporting
+library(knitr)
+library(foreign)
+opts_chunk$set(fig.path='figurecbd/cbd20-', fig.align='center', fig.show='hold',cache.path='cachecbd/cbd20-')
+opts_chunk$set(concordance=TRUE)
+
+setwd("~/projects/CBD/crosta/data/JBLraw/NC20")
+
+icodes <- c(132, 133, 134, 135)
+inames <- c("Durham Tech", "Stanly", "Gaston", "AB Tech")
+longnames <- c("Durham Technical Community College", "Stanly Community College", "Gaston College", "Asheville-Buncombe Technical Community College")
+yearsst <- c(2007)
+termvec <- c(1, 3, 6)
+yearvec <- 2007:2012
+yearterms <- paste(sapply(yearvec, rep, length(termvec)), rep(termvec, length(termvec)), sep=".")
+
+stud <- read.dta("StudentStatic_Derived.dta")
+stud <- subset(stud, subset=CohortId %in% yearsst & cntInstitution %in% icodes)
+stud$idinst <- paste(stud$StudentIdEncrypted, stud$cntInstitution, sep=".")
+
+stud$EnrollmentStatusFirstTerm <- factor(stud$EnrollmentStatusFirstTerm, labels=c("Other", "FT", "PT"))
+stud$StartingProgram <- factor(stud$StartingProgram, levels=levels(stud$StartingProgram)[-c(1,10,11)])
+stud$OutcomeAsOfYear5 <- factor(stud$OutcomeAsOfYear5, levels=levels(stud$OutcomeAsOfYear5)[-1])
+stud$OutcomeAsOfYear5 <- factor(stud$OutcomeAsOfYear5, levels=c("Short_Cert", "Long_Cert", "Apprentice",
+"Assoc", "BA", "Xfer_2yr_Cert_Assoc_Awd", "Xfer_4yr_Awd",  
+"Xfer_4yr_BA_Awd", "Xfer_2yr_Cert_Assoc", "Xfer_4yr", "Xfer_4yr_BA",  
+"Enrolled_30+_Credits", "Not Enrolled/Other"))
+stud$FirstMajor <- factor(stud$FirstMajor, levels=levels(stud$FirstMajor)[-1])
+stud$firstmajor_plot <- factor(stud$FirstMajor)
+levels(stud$firstmajor_plot) <- c(rep("Other CTE", 2), "Bus/Market", rep("Other CTE", 8), "Allied_Health", 
+"Nursing", rep("Other CTE", 6), "Undeclared", rep("LAS", 15))
+
+stud$concfield <- factor(stud$ConcentratorFieldOfStudy, levels=c(0:24), 
+                      labels=c("Missing", "Arts/Hum/Eng", "Math/Sci", "Soc/Behav", "Agriculture", "Auto and Aero", "Bus/Market",
+ "Secretarial", "Comm/Design", "Comp Info Sci", "Cosmetology", "Culinary", 
+ "Eng/Arch", "Eng/Sci", "Education", "Allied Health", "Nursing",
+ "Construction", "Manufacturing", "Mechanics", "Transportation", "Protective",
+ "Other CTE", "Undeclared", "Other Liberal Arts"))
+
+startprog_lab <- c("Non-credit Vocational", "ESL", "ABE", "ASE or GED", "Dual Enrollment", "Developmental", "College-Ready", "No Placement Info")
+levels(stud$StartingProgram) <- startprog_lab
+
+outcome_lab <- c("Short Cert", "Long Cert", "Apprentice", "Associate", 
+"Bachelor's (same inst)", "Transfer 2Yr Cert-Assoc with Award", "Transfer 4Yr with Award", 
+"Transfer 4Yr BA with Award", "Transfer 2Yr Cert-Assoc", "Transfer 4Yr", "Transfer 4Yr BA",
+"Enrolled with 30+ College Credits", "Not Enrolled/No Outcome")
+names(outcome_lab) <- levels(stud$OutcomeAsOfYear5)
+
+firstmajor_lab <- c("Agriculture", "Auto/Aero", "Bus/Market", "Secretarial", "Comm/Design",
+"Comp/Info Sci", "Cosmetology", "Culinary", "Eng/Arch", "Eng/Sci",
+"Education", "Allied Health", "Nursing", "Construction", "Manufacturing",
+"Mechanics", "Transportation", "Protective Services", "Other CTE", "Undeclared",
+"Liberal Arts", "Comm/Journalism", "Foreign Lang", "English",
+"Phil/Religion", "Vis/Perf Arts", "Bio/Biomed Sci", "Math/Stats",
+"Phys/Sci", "Area Studies", "Legal", "Psych", "Soc Sci", "History",
+"Interdisciplinary")
+@
+
+<<whichcoll,eval=TRUE,include=TRUE,cache=TRUE,echo=FALSE,results='asis',cache.path='cachecbd/cbd20-',dependson=c('setup')>>=
+wc <- 4
+@
+
+\memoto{\Sexpr{longnames[wc]} Completion By Design Team}
+\memofrom{Peter Crosta, Rob Johnstone, and Isaac Rowlett}
+\memosubject{Initial Look at CBD data}
+\memodate{\today}
+\logo{\includegraphics[width=0.3\textwidth]{logo.png}}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This memo introduces Completion by Design members from \Sexpr{longnames[wc]} to the types of data and analysis that will provide assistance during the planning year. As a gentle introduction to CBD, we begin with a brief overview of a single starting cohort from \Sexpr{inames[wc]}. We then present descriptive statistics that illuminate one of the many important relationships that will be discussed throughout the planning year: how 5-year outcomes vary by how students enter college (what is termed their starting level).
+
+\section{Glimpse of 2007 cohort}
+\Sexpr{inames[wc]}'s 2007 cohort of first-time in college (FTIC) students consists of \Sexpr{as.numeric(table(stud$cntInstitution)[as.character(icodes[wc])])} students. This number contains full- and part-time students who attended \Sexpr{inames[wc]} as their initial point of entry into postsecondary education in the fall, spring, or summer term of the 2007-08 school year. It also contains students who enter the college in any of several programs, from non-credit/vocational programs to ESL and curriculum programs.
+
+<<startlevel,eval=TRUE,include=TRUE,cache=TRUE,echo=FALSE,dependson=c("setup","whichcoll"),results='asis',cache.path='cachecbd/cbd20-'>>=
+library(xtable)
+library(descr)
+
+starttab <- table(stud$StartingProgram[stud$cntInstitution==icodes[wc]])
+
+Freq_all  <- table(stud$StartingProgram[stud$cntInstitution==icodes[wc]])
+Pct_all <- round(prop.table(Freq_all)*100)
+Freq_all["Non-credit Vocational"] <- 0
+Pct_NonCon <- round(prop.table(Freq_all)*100)
+Pct_Cred <- round(100*prop.table(Freq_all[c("Dual Enrollment", "Developmental", "College-Ready")]))
+
+newtab <- cbind(starttab, Pct_all, Pct_NonCon)
+newtab <- rbind(newtab, "Total"=c(sum(starttab), 100, 100), "Credential-Seeking"=c(sum(Freq_all[c("Dual Enrollment", "Developmental", "College-Ready")]),sum(Pct_all[c("Dual Enrollment", "Developmental", "College-Ready")]),sum(Pct_NonCon[c("Dual Enrollment", "Developmental", "College-Ready")])))
+colnames(newtab) <- c("Frequency", "Pct", "Pct (Excl. ConEd)")
+newtab["Non-credit Vocational", "Pct (Excl. ConEd)"] <- newtab[c("Dual Enrollment", "Developmental", "College-Ready"), "Pct (Excl. ConEd)"] <- NA
+
+## reorder newtab
+newtab <- newtab[c("Credential-Seeking", "Developmental", "College-Ready", "Dual Enrollment", "Non-credit Vocational", "ABE", "ESL", "ASE or GED", "No Placement Info", "Total"),]
+newtab[c("Dual Enrollment", "Developmental", "College-Ready"),"Frequency"] <- paste0("\\emph{",newtab[c("Dual Enrollment", "Developmental", "College-Ready"),"Frequency"],"}")
+newtab[c("Dual Enrollment", "Developmental", "College-Ready"),"Pct"] <- paste0("\\emph{",Pct_Cred,"}")
+rownames(newtab) <- c(paste0("\\textbf{", rownames(newtab)[1],"}"), paste("\\hskip .5cm", c(paste0("\\emph{", rownames(newtab)[2:4],"}"))), paste0("\\textbf{", rownames(newtab)[5:9],"}"), rownames(newtab)[10])
+
+
+#starttabf <- as.table(freq(as.character(stud$StartingProgram[stud$cntInstitution==icodes[wc]]),plot=FALSE))
+#notes1 <- paste0("\\hline Total & ", sum(starttab), " \\\\")
+  
+print(xtable(newtab, caption=paste0("Starting Levels for 2007 FTIC Cohort - ",inames[wc]), label="tab:start", digits=0, align="lrrr"), caption.placement="top", table.placement="h", include.colnames=TRUE, hline.after=c(-1,0,4,nrow(newtab)-1), sanitize.text.function=function(str) gsub("&", "&amp ", str, fixed = TRUE),)
+@
+
+Table~\ref{tab:start} shows the initial starting levels for \Sexpr{inames[wc]}. Note that of the \Sexpr{sum(starttab)} FTIC students, a large number of students are non-credit vocational (\Sexpr{as.numeric(starttab["Non-credit Vocational"])}), which means that they first enrolled in the college in a non-credit or continuing education course. Often, we wish to concentrate our analyses on students who are seeking to earn credits towards degrees or certificates. To do this, we use transcript or placement test information to identify students as College-Ready (\Sexpr{ifelse(wc!=2, as.numeric(starttab["College-Ready"]), "0 at Stanly")}), Developmental (\Sexpr{as.numeric(starttab["Developmental"])}), or those in dual enrollment programs (\Sexpr{as.numeric(starttab["Dual Enrollment"])}). Note that \Sexpr{as.numeric(Pct_Cred["College-Ready"])}\% of credential-seeking students come in as college-ready. In general, this categorization can be a useful way of thinking about who your institution serves.
+
+\section{Starting level by 5-year outcomes}
+Figure~\ref{fig:fyrout} illustrates 5-year highest outcomes for students in four of our possible starting levels: Dual Enrollment, Developmental Education, College-Ready, and No Placement Information.\footnote{Students with no placement information take credit-bearing courses but do not have placement test information and do not fit into the other starting level categories.} The distribution of outcomes is quite different across these groups, reflecting the college's multiple missions as well as the different pathways that students in each group follow.
+
+<<fyrout,eval=TRUE,include=TRUE,cache=TRUE,echo=FALSE,dependson=c("setup","whichcoll"),fig.align='center', fig.height='6.5in', fig.cap=paste0("5-year highest outcomes by starting level, ",inames[wc], " 2007 FTIC cohort"),results='asis',cache.path='cachecbd/cbd20-',fig.pos='h'>>=
+library(xtable)
+library(catspec)
+library(RColorBrewer)
+
+startlevel <- stud$StartingProgram[stud$cntInstitution==icodes[wc]]
+outlevel <- stud$OutcomeAsOfYear5[stud$cntInstitution==icodes[wc]]
+
+t1p <- ctab(startlevel, outlevel, type="row",dec.places=1,addmargins=TRUE)
+t1p <-  ftable(addmargins(t1p$ctab, 2))
+normtab <-  as.table(t1p)
+
+par(las=1)
+par(mar=c(11.5,2,2,2))
+par(oma=c(0,.1,.1,.1))
+par(xpd=TRUE)
+colchoice <-c("black", rev(brewer.pal(12, "Paired")))
+startplot <- c("Dual Enrollment", "Developmental", "College-Ready", "No Placement Info")
+barlabs <- paste(startprog_lab[5:8], "\nN=", as.numeric(table(startlevel)[startplot]),sep='')
+barmat <- t(unclass(ftable(as.table(t1p)[startplot, levels(stud$OutcomeAsOfYear5)])))
+#startlabs <- paste(rep(startprog_lab[5:8], each=2), rep(c(2006,2005),4))
+barplot(barmat, horiz=F, col=colchoice, 
+  		names.arg=barlabs, cex.names=.85, 
+			legend.text=outcome_lab, args.legend=list(x="bottom", cex=.85, inset=-.5,
+			ncol=2, box.lty=0, bg="white"), main="", axes=FALSE)
+			axis(side=2, at=seq(0, 100, 10), las=1, hadj=0.2, cex.axis=.85, tck=.03)
+
+@
+
+Note the wide array of mutually exclusive outcomes we consider, from short and long certificates, associate degrees, and transfer outcomes (with and without a two-year credential), to students who are still enrolled with 30+ credits after five years to those who are no longer enrolled and have not earned a credential, a substantial number of credits, or have transferred.\footnote{Key to transfer awards from top left to bottom right: Transfer to a 4yr school without award and earn BA, Transfer to a 4yr school (no awards), Transfer to a 2yr school and earn award, Transfer to a 4yr school with award from starting school and earn BA, Transfer to a 4yr school with award from starting school, Transfer to a 2yr school with award from starting school and earn award at transfer school
+.} There are clear disparities in outcomes that can be seen immediately in the figure. For example, dual enrollment students (though small in number) are generally more likely to transfer up to four-year institutions than students in other starting levels. Students who begin in developmental education are more likely after five years to no longer be enrolled and have no measureable outcome (\Sexpr{round(normtab["Developmental","Not Enrolled/Other"])}\%) compared to their \Sexpr{ifelse(wc!=2, "college-ready", "no placement information")} counterparts (\Sexpr{ifelse(wc!=2, round(normtab["College-Ready","Not Enrolled/Other"]), round(normtab["No Placement Info","Not Enrolled/Other"]))}\%). In addition, note the percentage of developmental and \Sexpr{ifelse(wc!=2, "college-ready", "no placement information")} students who have completed any community college credential after five years: \Sexpr{round(sum(normtab["Developmental",levels(stud$OutcomeAsOfYear5)[c(1,2,4,6,7,8)]]))}\% for developmental vs. \Sexpr{ifelse(wc!=2, round(sum(normtab["College-Ready",levels(stud$OutcomeAsOfYear5)[c(1,2,4,6,7,8)]])), round(sum(normtab["No Placement Info",levels(stud$OutcomeAsOfYear5)[c(1,2,4,6,7,8)]])))}\% for \Sexpr{ifelse(wc!=2, "college-ready", "no placement information")}. Lastly, there are some students who seem to be lingering, or still enrolled after five years with 30 credits: \Sexpr{round(sum(normtab["Developmental","Enrolled_30+_Credits"]))}\% for developmental, \Sexpr{ifelse(wc!=2, round(sum(normtab["College-Ready","Enrolled_30+_Credits"])), round(sum(normtab["No Placement Info","Enrolled_30+_Credits"])))}\% for \Sexpr{ifelse(wc!=2, "college-ready", "no placement information")}.
+
+\section{Conclusion}
+This memo provides \Sexpr{inames[wc]} CBD members with a brief introduction to the 2007 cohort, how they enter the college, and where their postsecondary education has taken them after five years. Though it presents a few important data points, it surely raises more questions than it answers. We conclude with some additional questions to consider after reading this memo:
+
+\begin{itemize}
+  \item Were you surprised by any of the information on the starting program levels of students in the FTIC cohort? If so, what surprised you?
+  \item Were you surprised by any of these completion rate figures? If so, what did you find surprising?
+  \item Why are the completion rates for students who are initially referred to developmental instruction so different from other groups?
+  \item Who are the students who accumulate a substantial number of credits but do not complete a credential within 5 years? What can the college do to help these students enter and complete programs more quickly?
+  \item Who are the students who transfer to a four-year institution without earning a credential from the college? Is that an acceptable outcome for the college and your community? If not, what could be done to encourage students to complete credentials before they transfer?
+\end{itemize}
+
+
+\end{document}
